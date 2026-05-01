@@ -167,7 +167,7 @@ const Photography = () => {
       .select("id, user_id, image_url, likes_count")
       .not("image_url", "is", null)
       .order("likes_count", { ascending: false, nullsFirst: false })
-      .limit(20);
+      .limit(100);
 
     (async () => {
       const [{ data: ag }, { data: topRaw }] = await Promise.all([agenciesPromise, topPostsPromise]);
