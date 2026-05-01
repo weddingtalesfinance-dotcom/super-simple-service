@@ -1,58 +1,66 @@
-## Goal
+## Photography Page — Hero Redesign
 
-1. **Remove** the Videography card from the homepage's "Browse by Category" section (only Photography stays as the active one; Decorators/Makeup/Venues stay greyed out as "Coming Soon").
-2. **Make each studio card clickable** on `/photography` — opening a public profile page styled like the Freelancer.xitoevents.com profile.
-3. **Order studios by total likes** received across all their feed posts (highest first).
+Replace the current text hero on `/photography` with a carousel of the most-liked photos (across all agency studios), and move the search box into the top nav next to the "Xito.Events" logo.
 
-## Changes
+### 1. Top nav (search relocation)
+- In `src/pages/Photography.tsx`, the `<nav>` becomes:
+  - Left: `Xito.Events` logo
+  - Middle (flex-1): a compact search input ("Search studios by name or city…"), sized smaller on mobile, hidden-icon on very small screens — collapses into a smaller pill but stays visible
+  - Right: "← Back to Home" link (icon only on mobile to save space)
+- The current search input inside the hero is removed. The same `search` state continues to drive the studio grid below.
 
-### 1. `src/pages/Index.tsx` — categories grid
-- Remove the "Videography" entry from the `CATS` array. Final cards: **Photography (active)**, Decorators, Makeup Artists, Venues (all three remain greyed out with "Soon" badge).
-- Grid stays at `lg:grid-cols-5` visually? Switch to `lg:grid-cols-4` so 4 cards fill the row cleanly.
+### 2. New hero — Top Photos carousel
+Replace the existing dark gradient hero with a slimmer header + carousel section:
+- Small heading row above the carousel: "Most Loved Shots" + subtitle "Tap any photo to visit the studio".
+- Data: fetch top photos via
+  ```
+  feed_posts (id, user_id, image_url, likes_count)
+  joined with freelancer_profiles (business_name, full_name, profile_photo_url, city)
+  where account_type='agency' and image_url not null
+  order by likes_count desc nulls last
+  limit 15
+  ```
+  We'll do this as a second query in the same `useEffect` (one query for posts, one for profiles by `user_id IN (...)`), since the existing client typings already cover both tables.
 
-### 2. `src/pages/Photography.tsx` — list page updates
-- Change the Supabase query so studios are **ordered by total likes**:
-  - Fetch all agency profiles.
-  - Fetch every `feed_posts` row for those users with `likes_count`, sum per user.
-  - Sort the agency list by that sum descending. Studios with 0 likes go to the bottom.
-- Wrap each studio card in a `<Link to={`/photography/${user_id}`}>` so the whole card is clickable.
-- Add a small "❤ N" badge on each card showing total likes (so the ordering is visible).
+- Each slide card shows:
+  - The photo (object-cover, fixed height)
+  - Bottom overlay gradient with: studio avatar (small circle), business name, city, and a small "♥ N" likes pill on the top-right
+  - The whole card is a `<Link to={\`/photography/\${post.user_id}\`}>` so clicking opens that studio's profile
 
-### 3. New page `src/pages/StudioProfile.tsx` (route `/photography/:userId`)
-Public read-only profile that mirrors the Freelancer app's `ProfileLayout` look, minus auth-only actions (no Follow / Message / Settings — this is a marketing landing page, viewers are not logged in).
+### 3. Carousel behavior (responsive)
+Use the existing `embla-carousel-react` (already in `src/components/ui/carousel.tsx`):
+- Desktop (≥1024px): 4 slides visible, navigation arrows, snap scrolling
+- Tablet (≥640px): 3 slides visible
+- Mobile (<640px): **2 slides visible**, **continuous free-scroll** (Embla `dragFree: true`, `loop: true`, `align: 'start'`) — no arrows, swipe only, with a subtle right-edge fade hint
+- Slide height: ~280px desktop, ~200px mobile so two fit nicely side-by-side
 
-Sections, top to bottom:
-- **Top bar**: back link to `/photography` + studio name.
-- **Header**: 80px avatar + 3 stats (Posts · Total Likes · Followers — followers fetched from `follows` table count).
-- **Identity block**: business name (or full_name), `main_job` highlighted, skill badges built from the same `YES`/`NO` columns the freelancer app uses (`photographer`, `videographer`, `photo_editor`, etc.), city · area, bio.
-- **Social row**: Instagram / Facebook / YouTube / TikTok icon links (only those that exist), same styling as the Freelancer app.
-- **Contact row**: WhatsApp button (deep-links to `wa.me/<number>`) and a Call button (`tel:`) — only visible when contact_number / whatsapp_number is set. No auth wall, since the goal is to drive leads from the landing page.
-- **Posts grid**: Instagram-style 3-column grid of all the studio's feed_posts that have `image_url`, ordered newest first. Click a post → open a simple lightbox (image + caption). Empty state: "No posts yet."
+We'll configure two Embla instances OR (cleaner) one instance with options derived from a `useIsMobile()` check. Plan: single carousel with conditional `opts={{ loop: true, dragFree: isMobile, align: 'start' }}` and CSS basis classes (`basis-1/2 sm:basis-1/3 lg:basis-1/4`).
 
-Data fetched in parallel with one query per source:
-```
-freelancer_profiles  where user_id = :id   (single row)
-feed_posts           where user_id = :id and image_url not null  order by created_at desc
-follows              where following_id = :id and status='accepted'   (head:true count)
-```
+### 4. Loading & empty states
+- Skeleton: 4 grey rectangle slides while loading
+- Empty (no agency posts yet): hide the carousel and show a small line "No featured photos yet — be the first to post."
 
-### 4. `src/App.tsx` — add the new route above the catch-all
+### 5. Files touched
+- `src/pages/Photography.tsx` — only file modified
+  - Remove old hero `<section>`
+  - Add new `TopPhotosCarousel` section (inline component within the same file)
+  - Move search input into the `<nav>`
+  - Add a fetch for top liked photos to the existing `useEffect`
+
+No database, routing, or other component changes needed. The `/photography/:userId` route already exists.
+
+### Technical snippet
 ```tsx
-<Route path="/photography" element={<Photography />} />
-<Route path="/photography/:userId" element={<StudioProfile />} />
+const { data: posts } = await supabase
+  .from('feed_posts')
+  .select('id, user_id, image_url, likes_count')
+  .not('image_url', 'is', null)
+  .order('likes_count', { ascending: false })
+  .limit(30); // fetch extra, then filter to agency user_ids client-side
+
+const agencyIdSet = new Set(agencies.map(a => a.user_id));
+const topPhotos = (posts ?? [])
+  .filter(p => agencyIdSet.has(p.user_id))
+  .slice(0, 15)
+  .map(p => ({ ...p, studio: agencyById[p.user_id] }));
 ```
-
-## Technical notes
-
-- All queries use the existing anon-readable RLS on `freelancer_profiles`, `feed_posts`, `follows` — no schema or policy changes needed.
-- `likes_count` already lives on each `feed_posts` row (maintained by the `update_feed_likes_count` trigger), so ranking is one cheap query — no extra joins.
-- Files touched:
-
-```text
-src/pages/Index.tsx           (remove Videography card)
-src/pages/Photography.tsx     (sort by total likes, make cards links, show like count)
-src/pages/StudioProfile.tsx   (new public profile page)
-src/App.tsx                   (new route)
-```
-
-Approve to implement.
