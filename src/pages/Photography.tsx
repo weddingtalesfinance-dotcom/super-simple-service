@@ -167,7 +167,7 @@ const Photography = () => {
       .select("id, user_id, image_url, likes_count")
       .not("image_url", "is", null)
       .order("likes_count", { ascending: false, nullsFirst: false })
-      .limit(20);
+      .limit(100);
 
     (async () => {
       const [{ data: ag }, { data: topRaw }] = await Promise.all([agenciesPromise, topPostsPromise]);
@@ -180,7 +180,7 @@ const Photography = () => {
       // Hero: ready as soon as both small queries resolve
       const top: TopPhoto[] = ((topRaw as Post[] | null) ?? [])
         .filter(p => p.image_url && agencyById[p.user_id])
-        .slice(0, 15)
+        .slice(0, 100)
         .map(p => ({
           id: p.id,
           user_id: p.user_id,
