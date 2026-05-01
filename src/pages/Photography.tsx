@@ -67,9 +67,10 @@ const TopPhotosCarousel = ({ photos, loading }: { photos: TopPhoto[]; loading: b
     <div className="relative">
       <div ref={emblaRef} className="overflow-hidden">
         <div className="flex gap-3 md:gap-4">
-          {photos.map((p) => {
+          {photos.map((p, idx) => {
             const title = p.studio.business_name?.trim() || p.studio.full_name?.trim() || "Studio";
             const location = [p.studio.city, p.studio.area].filter(Boolean).join(" · ");
+            const eager = idx < 4;
             return (
               <Link
                 key={p.id}
@@ -79,7 +80,9 @@ const TopPhotosCarousel = ({ photos, loading }: { photos: TopPhoto[]; loading: b
                 <img
                   src={p.image_url}
                   alt={`${title} — featured photo`}
-                  loading="lazy"
+                  loading={eager ? "eager" : "lazy"}
+                  // @ts-expect-error fetchpriority is a valid HTML attr
+                  fetchpriority={idx === 0 ? "high" : undefined}
                   className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                 />
                 {/* Likes pill */}
