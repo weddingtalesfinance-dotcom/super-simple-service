@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import useEmblaCarousel from "embla-carousel-react";
+import { ArrowLeft, ArrowRight, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type Agency = {
   user_id: string;
@@ -14,8 +17,11 @@ type Agency = {
 
 type Post = { id: string; user_id: string; image_url: string | null; likes_count: number | null; created_at: string };
 
+type StudioRow = Agency & { totalLikes: number; photos: string[] };
+type TopPhoto = { id: string; user_id: string; image_url: string; likes_count: number; studio: Agency };
+
 const Logo = () => (
-  <Link to="/" className="font-display text-[22px] font-bold text-ink tracking-wide">
+  <Link to="/" className="font-display text-[20px] md:text-[22px] font-bold text-ink tracking-wide shrink-0">
     Xito<span className="text-brand">.</span>Events
   </Link>
 );
@@ -26,11 +32,119 @@ const FooterLogo = () => (
   </div>
 );
 
-type StudioRow = Agency & { totalLikes: number; photos: string[] };
+/* ---------------- Top Photos Carousel ---------------- */
+const TopPhotosCarousel = ({ photos, loading }: { photos: TopPhoto[]; loading: boolean }) => {
+  const isMobile = useIsMobile();
+  const [emblaRef, emblaApi] = useEmblaCarousel({
+    loop: photos.length > 4,
+    align: "start",
+    dragFree: isMobile,
+    containScroll: "trimSnaps",
+  });
 
+  if (loading) {
+    return (
+      <div className="flex gap-3 overflow-hidden">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="shrink-0 basis-1/2 sm:basis-1/3 lg:basis-1/4 h-[200px] sm:h-[260px] lg:h-[300px] rounded-xl bg-muted animate-pulse"
+          />
+        ))}
+      </div>
+    );
+  }
+
+  if (!photos.length) {
+    return (
+      <div className="text-center py-10 text-sm text-white/70">
+        No featured photos yet — be the first to post.
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <div ref={emblaRef} className="overflow-hidden">
+        <div className="flex gap-3 md:gap-4">
+          {photos.map((p) => {
+            const title = p.studio.business_name?.trim() || p.studio.full_name?.trim() || "Studio";
+            const location = [p.studio.city, p.studio.area].filter(Boolean).join(" · ");
+            return (
+              <Link
+                key={p.id}
+                to={`/photography/${p.user_id}`}
+                className="group relative shrink-0 basis-1/2 sm:basis-1/3 lg:basis-1/4 h-[200px] sm:h-[260px] lg:h-[300px] rounded-xl overflow-hidden bg-muted shadow-lg hover:shadow-2xl transition-all hover:-translate-y-1"
+              >
+                <img
+                  src={p.image_url}
+                  alt={`${title} — featured photo`}
+                  loading="lazy"
+                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                />
+                {/* Likes pill */}
+                <div className="absolute top-2 right-2 text-[11px] font-semibold bg-black/55 backdrop-blur text-white px-2 py-0.5 rounded-full flex items-center gap-1 z-10">
+                  <span className="text-brand-light">♥</span> {p.likes_count}
+                </div>
+                {/* Bottom info */}
+                <div className="absolute inset-x-0 bottom-0 p-2.5 sm:p-3 bg-gradient-to-t from-black/85 via-black/55 to-transparent">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-brand-soft border border-white/30 shrink-0">
+                      {p.studio.profile_photo_url ? (
+                        <img src={p.studio.profile_photo_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-brand text-[11px] font-bold">
+                          {title.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[12px] sm:text-[13px] font-semibold text-white truncate leading-tight">{title}</div>
+                      {location && <div className="text-[10px] sm:text-[11px] text-white/70 truncate">{location}</div>}
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Desktop arrows */}
+      {!isMobile && photos.length > 4 && (
+        <>
+          <button
+            type="button"
+            onClick={() => emblaApi?.scrollPrev()}
+            className="hidden lg:flex absolute -left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/95 hover:bg-white items-center justify-center shadow-lg z-20 transition"
+            aria-label="Previous"
+          >
+            <ArrowLeft className="w-4 h-4 text-ink" />
+          </button>
+          <button
+            type="button"
+            onClick={() => emblaApi?.scrollNext()}
+            className="hidden lg:flex absolute -right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/95 hover:bg-white items-center justify-center shadow-lg z-20 transition"
+            aria-label="Next"
+          >
+            <ArrowRight className="w-4 h-4 text-ink" />
+          </button>
+        </>
+      )}
+
+      {/* Mobile fade hint */}
+      {isMobile && (
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background/80 to-transparent" />
+      )}
+    </div>
+  );
+};
+
+/* ---------------- Page ---------------- */
 const Photography = () => {
   const [loading, setLoading] = useState(true);
   const [studios, setStudios] = useState<StudioRow[]>([]);
+  const [topPhotos, setTopPhotos] = useState<TopPhoto[]>([]);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -43,13 +157,18 @@ const Photography = () => {
         .eq("account_type", "agency");
 
       if (error || !ag) {
-        if (!cancelled) { setStudios([]); setLoading(false); }
+        if (!cancelled) { setStudios([]); setTopPhotos([]); setLoading(false); }
         return;
       }
 
-      const ids = (ag as Agency[]).map(a => a.user_id);
+      const agencies = ag as Agency[];
+      const ids = agencies.map(a => a.user_id);
+      const agencyById: Record<string, Agency> = {};
+      agencies.forEach(a => { agencyById[a.user_id] = a; });
+
       const likesByUser: Record<string, number> = {};
       const photosByUser: Record<string, string[]> = {};
+      let topPosts: Post[] = [];
 
       if (ids.length) {
         const { data: posts } = await supabase
@@ -58,21 +177,38 @@ const Photography = () => {
           .in("user_id", ids)
           .order("created_at", { ascending: false });
 
-        (posts as Post[] | null)?.forEach(p => {
+        const all = (posts as Post[] | null) ?? [];
+        all.forEach(p => {
           likesByUser[p.user_id] = (likesByUser[p.user_id] ?? 0) + (p.likes_count ?? 0);
           if (p.image_url) {
             if (!photosByUser[p.user_id]) photosByUser[p.user_id] = [];
             if (photosByUser[p.user_id].length < 3) photosByUser[p.user_id].push(p.image_url);
           }
         });
+
+        topPosts = all
+          .filter(p => p.image_url)
+          .sort((a, b) => (b.likes_count ?? 0) - (a.likes_count ?? 0))
+          .slice(0, 15);
       }
 
-      const rows: StudioRow[] = (ag as Agency[])
+      const rows: StudioRow[] = agencies
         .map(a => ({ ...a, totalLikes: likesByUser[a.user_id] ?? 0, photos: photosByUser[a.user_id] ?? [] }))
         .sort((a, b) => b.totalLikes - a.totalLikes);
 
+      const top: TopPhoto[] = topPosts
+        .filter(p => agencyById[p.user_id])
+        .map(p => ({
+          id: p.id,
+          user_id: p.user_id,
+          image_url: p.image_url as string,
+          likes_count: p.likes_count ?? 0,
+          studio: agencyById[p.user_id],
+        }));
+
       if (!cancelled) {
         setStudios(rows);
+        setTopPhotos(top);
         setLoading(false);
       }
     })();
@@ -89,36 +225,68 @@ const Photography = () => {
 
   return (
     <div className="bg-background text-ink w-full min-h-screen flex flex-col">
-      {/* NAV */}
-      <nav className="flex items-center justify-between px-6 md:px-10 h-16 border-b border-border bg-background z-10">
+      {/* NAV with inline search */}
+      <nav className="flex items-center gap-3 md:gap-6 px-4 md:px-10 h-16 border-b border-border bg-background z-10 sticky top-0">
         <Logo />
-        <Link to="/" className="text-[13px] font-medium text-foreground/70 hover:text-brand transition-colors">← Back to Home</Link>
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search studios…"
+            className="w-full pl-9 pr-3 py-2 rounded-full text-sm bg-muted/60 border border-border focus:outline-none focus:ring-2 focus:ring-brand focus:bg-background transition"
+            aria-label="Search studios"
+          />
+        </div>
+        <Link
+          to="/"
+          className="text-[13px] font-medium text-foreground/70 hover:text-brand transition-colors hidden sm:inline"
+        >
+          ← Back to Home
+        </Link>
+        <Link
+          to="/"
+          className="sm:hidden w-9 h-9 rounded-full border border-border flex items-center justify-center text-foreground/70 hover:text-brand"
+          aria-label="Back to Home"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </Link>
       </nav>
 
-      {/* HEADER */}
-      <section className="relative py-16 px-6 md:px-10 overflow-hidden border-b border-border" style={{ background: "var(--gradient-hero)" }}>
-        <div className="absolute inset-0 bg-black/35" />
-        <div className="relative z-10 max-w-5xl mx-auto text-center">
-          <div className="text-[11px] tracking-[0.3em] uppercase text-white/60 mb-3">Browse Category</div>
-          <h1 className="font-display text-[40px] md:text-[48px] font-bold text-white leading-[1.1] mb-3">
-            <em className="italic text-brand-light">Photography</em> Studios in Nepal
-          </h1>
-          <p className="text-[14px] text-white/65 font-light">
-            {loading ? "Loading verified studios…" : `${filtered.length} verified studio${filtered.length === 1 ? "" : "s"} · ranked by popularity`}
-          </p>
-          <div className="mt-6 flex justify-center">
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search by name or city…"
-              className="w-full max-w-md px-4 py-3 rounded-md text-sm bg-white/95 text-ink placeholder:text-muted-foreground border border-white/20 focus:outline-none focus:ring-2 focus:ring-brand"
-            />
+      {/* HERO — Top Photos Carousel */}
+      <section
+        className="relative px-4 md:px-10 py-8 md:py-12 overflow-hidden border-b border-border"
+        style={{ background: "var(--gradient-hero)" }}
+      >
+        <div className="absolute inset-0 bg-black/40" />
+        <div className="relative z-10 max-w-7xl mx-auto">
+          <div className="flex items-end justify-between mb-5 md:mb-7">
+            <div>
+              <div className="text-[10px] md:text-[11px] tracking-[0.3em] uppercase text-white/60 mb-1.5">
+                Most Loved Shots
+              </div>
+              <h1 className="font-display text-[24px] md:text-[36px] font-bold text-white leading-tight">
+                <em className="italic text-brand-light">Photography</em> Studios in Nepal
+              </h1>
+              <p className="text-[12px] md:text-[13px] text-white/65 font-light mt-1">
+                Tap any photo to visit the studio
+              </p>
+            </div>
           </div>
+
+          <TopPhotosCarousel photos={topPhotos} loading={loading} />
         </div>
       </section>
 
       {/* GRID */}
       <section className="flex-1 px-6 md:px-10 py-12">
+        <div className="max-w-6xl mx-auto mb-6 flex items-baseline justify-between">
+          <h2 className="font-display text-[20px] md:text-[24px] font-bold text-ink">All Studios</h2>
+          <span className="text-[12px] text-muted-foreground">
+            {loading ? "Loading…" : `${filtered.length} studio${filtered.length === 1 ? "" : "s"} · ranked by popularity`}
+          </span>
+        </div>
+
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -147,7 +315,6 @@ const Photography = () => {
                   to={`/photography/${a.user_id}`}
                   className="group rounded-xl border border-border bg-card overflow-hidden hover:shadow-xl transition-all hover:-translate-y-1 block"
                 >
-                  {/* photo strip */}
                   <div className="relative grid grid-cols-3 gap-px h-44 bg-border">
                     {a.photos.length > 0 ? (
                       <>
@@ -173,7 +340,6 @@ const Photography = () => {
                     </div>
                   </div>
 
-                  {/* meta */}
                   <div className="p-4 flex items-start gap-3">
                     <div className="w-11 h-11 rounded-full overflow-hidden bg-brand-soft flex items-center justify-center shrink-0 border border-border">
                       {a.profile_photo_url ? (
