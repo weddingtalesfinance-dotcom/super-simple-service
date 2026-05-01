@@ -36,12 +36,23 @@ const FooterLogo = () => (
 /* ---------------- Top Photos Carousel ---------------- */
 const TopPhotosCarousel = ({ photos, loading }: { photos: TopPhoto[]; loading: boolean }) => {
   const isMobile = useIsMobile();
-  const [emblaRef, emblaApi] = useEmblaCarousel({
-    loop: photos.length > 4,
-    align: "start",
-    dragFree: isMobile,
-    containScroll: "trimSnaps",
-  });
+  const [emblaRef, emblaApi] = useEmblaCarousel(
+    {
+      loop: true,
+      align: "start",
+      dragFree: true,
+      containScroll: "trimSnaps",
+    },
+    [
+      AutoScroll({
+        speed: 0.6, // slow, cinematic drift
+        startDelay: 600,
+        stopOnInteraction: false,
+        stopOnMouseEnter: true,
+        stopOnFocusIn: true,
+      }),
+    ]
+  );
 
   if (loading) {
     return (
