@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { SignupModal } from "@/components/xito/SignupModal";
 
 type Role = "client" | "sp" | null;
@@ -16,11 +17,11 @@ const FooterLogo = () => (
 );
 
 const CATS = [
-  { icon: "📸", label: "Photographers", count: "32 professionals", bg: "var(--gradient-cat-1)" },
-  { icon: "🎬", label: "Videographers", count: "24 professionals", bg: "var(--gradient-cat-2)" },
-  { icon: "🎨", label: "Decorators", count: "18 professionals", bg: "var(--gradient-cat-3)" },
-  { icon: "💄", label: "Makeup Artists", count: "12 professionals", bg: "var(--gradient-cat-4)" },
-  { icon: "🏛", label: "Venues", count: "15 listed", bg: "var(--gradient-cat-5)" },
+  { icon: "📸", label: "Photography", count: "Browse studios", bg: "var(--gradient-cat-1)", href: "/photography", active: true },
+  { icon: "🎬", label: "Videography", count: "Coming soon", bg: "var(--gradient-cat-2)", href: "#", active: false },
+  { icon: "🎨", label: "Decorators", count: "Coming soon", bg: "var(--gradient-cat-3)", href: "#", active: false },
+  { icon: "💄", label: "Makeup Artists", count: "Coming soon", bg: "var(--gradient-cat-4)", href: "#", active: false },
+  { icon: "🏛", label: "Venues", count: "Coming soon", bg: "var(--gradient-cat-5)", href: "#", active: false },
 ];
 
 const STEPS = [
@@ -113,16 +114,30 @@ const Index = () => {
           <a href="#" className="text-xs font-semibold text-brand uppercase tracking-wider">View All →</a>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
-          {CATS.map(c => (
-            <a key={c.label} href="#" className="rounded-[10px] overflow-hidden relative cursor-pointer aspect-[3/4] hover:-translate-y-1 transition-transform block">
-              <div className="absolute inset-0 flex items-center justify-center text-5xl" style={{ background: c.bg }}>{c.icon}</div>
-              <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.1) 60%)" }} />
-              <div className="absolute bottom-0 left-0 right-0 px-3.5 py-4 text-white">
-                <div className="text-[13px] font-semibold leading-tight">{c.label}</div>
-                <div className="text-[11px] font-light text-white/60 mt-0.5">{c.count}</div>
-              </div>
-            </a>
-          ))}
+          {CATS.map(c => {
+            const inner = (
+              <>
+                <div className="absolute inset-0 flex items-center justify-center text-5xl" style={{ background: c.bg }}>{c.icon}</div>
+                <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.1) 60%)" }} />
+                {!c.active && <div className="absolute inset-0 bg-black/55" />}
+                <div className="absolute bottom-0 left-0 right-0 px-3.5 py-4 text-white">
+                  <div className="text-[13px] font-semibold leading-tight">{c.label}</div>
+                  <div className="text-[11px] font-light text-white/70 mt-0.5">{c.count}</div>
+                </div>
+                {!c.active && (
+                  <div className="absolute top-2 right-2 text-[9px] font-semibold tracking-wider uppercase bg-white/15 backdrop-blur text-white px-2 py-0.5 rounded-full border border-white/20">
+                    Soon
+                  </div>
+                )}
+              </>
+            );
+            const cls = `rounded-[10px] overflow-hidden relative aspect-[3/4] block ${c.active ? "cursor-pointer hover:-translate-y-1 transition-transform" : "cursor-not-allowed opacity-80"}`;
+            return c.active ? (
+              <Link key={c.label} to={c.href} className={cls}>{inner}</Link>
+            ) : (
+              <div key={c.label} className={cls} aria-disabled>{inner}</div>
+            );
+          })}
         </div>
       </section>
 
