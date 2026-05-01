@@ -84,13 +84,13 @@ const Index = () => {
               { num: "500+", label: "Events Covered" },
               { num: "4.9★", label: "Avg Rating" },
             ].map((s, i, arr) => (
-              <>
-                <div key={s.label} className="text-center">
+              <div key={s.label} className="flex items-center gap-10">
+                <div className="text-center">
                   <div className="font-display text-[26px] font-semibold text-white leading-none">{s.num}</div>
                   <div className="text-[10px] tracking-[0.15em] text-white/45 uppercase mt-1">{s.label}</div>
                 </div>
-                {i < arr.length - 1 && <div key={`sep-${i}`} className="w-px h-9 bg-white/15" />}
-              </>
+                {i < arr.length - 1 && <div className="w-px h-9 bg-white/15" />}
+              </div>
             ))}
           </div>
         </div>
