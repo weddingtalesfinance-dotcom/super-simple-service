@@ -12,7 +12,7 @@ type Agency = {
   bio: string | null;
 };
 
-type Post = { id: string; user_id: string; image_url: string };
+type Post = { id: string; user_id: string; image_url: string | null; likes_count: number | null; created_at: string };
 
 const Logo = () => (
   <Link to="/" className="font-display text-[22px] font-bold text-ink tracking-wide">
@@ -26,10 +26,11 @@ const FooterLogo = () => (
   </div>
 );
 
+type StudioRow = Agency & { totalLikes: number; photos: string[] };
+
 const Photography = () => {
   const [loading, setLoading] = useState(true);
-  const [agencies, setAgencies] = useState<Agency[]>([]);
-  const [postsByUser, setPostsByUser] = useState<Record<string, string[]>>({});
+  const [studios, setStudios] = useState<StudioRow[]>([]);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -42,30 +43,36 @@ const Photography = () => {
         .eq("account_type", "agency");
 
       if (error || !ag) {
-        if (!cancelled) { setAgencies([]); setLoading(false); }
+        if (!cancelled) { setStudios([]); setLoading(false); }
         return;
       }
 
-      const ids = ag.map((a: Agency) => a.user_id);
-      const grouped: Record<string, string[]> = {};
+      const ids = (ag as Agency[]).map(a => a.user_id);
+      const likesByUser: Record<string, number> = {};
+      const photosByUser: Record<string, string[]> = {};
 
       if (ids.length) {
         const { data: posts } = await supabase
           .from("feed_posts")
-          .select("id, user_id, image_url, created_at")
+          .select("id, user_id, image_url, likes_count, created_at")
           .in("user_id", ids)
-          .not("image_url", "is", null)
           .order("created_at", { ascending: false });
 
         (posts as Post[] | null)?.forEach(p => {
-          if (!grouped[p.user_id]) grouped[p.user_id] = [];
-          if (grouped[p.user_id].length < 3 && p.image_url) grouped[p.user_id].push(p.image_url);
+          likesByUser[p.user_id] = (likesByUser[p.user_id] ?? 0) + (p.likes_count ?? 0);
+          if (p.image_url) {
+            if (!photosByUser[p.user_id]) photosByUser[p.user_id] = [];
+            if (photosByUser[p.user_id].length < 3) photosByUser[p.user_id].push(p.image_url);
+          }
         });
       }
 
+      const rows: StudioRow[] = (ag as Agency[])
+        .map(a => ({ ...a, totalLikes: likesByUser[a.user_id] ?? 0, photos: photosByUser[a.user_id] ?? [] }))
+        .sort((a, b) => b.totalLikes - a.totalLikes);
+
       if (!cancelled) {
-        setAgencies(ag as Agency[]);
-        setPostsByUser(grouped);
+        setStudios(rows);
         setLoading(false);
       }
     })();
@@ -74,11 +81,11 @@ const Photography = () => {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return agencies;
-    return agencies.filter(a =>
+    if (!q) return studios;
+    return studios.filter(a =>
       [a.business_name, a.full_name, a.city, a.area].some(v => v?.toLowerCase().includes(q))
     );
-  }, [agencies, search]);
+  }, [studios, search]);
 
   return (
     <div className="bg-background text-ink w-full min-h-screen flex flex-col">
@@ -97,7 +104,7 @@ const Photography = () => {
             <em className="italic text-brand-light">Photography</em> Studios in Nepal
           </h1>
           <p className="text-[14px] text-white/65 font-light">
-            {loading ? "Loading verified studios…" : `${filtered.length} verified studio${filtered.length === 1 ? "" : "s"} ready to capture your moments`}
+            {loading ? "Loading verified studios…" : `${filtered.length} verified studio${filtered.length === 1 ? "" : "s"} · ranked by popularity`}
           </p>
           <div className="mt-6 flex justify-center">
             <input
@@ -131,28 +138,39 @@ const Photography = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-            {filtered.map(a => {
-              const photos = postsByUser[a.user_id] ?? [];
+            {filtered.map((a, idx) => {
               const title = a.business_name?.trim() || a.full_name?.trim() || "Studio";
               const location = [a.city, a.area].filter(Boolean).join(" · ") || "Nepal";
               return (
-                <article key={a.user_id} className="group rounded-xl border border-border bg-card overflow-hidden hover:shadow-xl transition-all hover:-translate-y-1">
+                <Link
+                  key={a.user_id}
+                  to={`/photography/${a.user_id}`}
+                  className="group rounded-xl border border-border bg-card overflow-hidden hover:shadow-xl transition-all hover:-translate-y-1 block"
+                >
                   {/* photo strip */}
-                  <div className="grid grid-cols-3 gap-px h-44 bg-border">
-                    {photos.length > 0 ? (
+                  <div className="relative grid grid-cols-3 gap-px h-44 bg-border">
+                    {a.photos.length > 0 ? (
                       <>
-                        {photos.map((url, i) => (
+                        {a.photos.map((url, i) => (
                           <div key={i} className="bg-muted overflow-hidden">
                             <img src={url} alt={`${title} portfolio ${i + 1}`} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                           </div>
                         ))}
-                        {Array.from({ length: Math.max(0, 3 - photos.length) }).map((_, i) => (
+                        {Array.from({ length: Math.max(0, 3 - a.photos.length) }).map((_, i) => (
                           <div key={`ph-${i}`} className="bg-brand-soft" />
                         ))}
                       </>
                     ) : (
                       <div className="col-span-3 flex items-center justify-center text-4xl" style={{ background: "var(--gradient-cat-1)" }}>📸</div>
                     )}
+                    {idx < 3 && (
+                      <div className="absolute top-2 left-2 text-[10px] font-bold tracking-wider uppercase bg-brand text-primary-foreground px-2 py-0.5 rounded-full shadow">
+                        #{idx + 1} Top
+                      </div>
+                    )}
+                    <div className="absolute top-2 right-2 text-[11px] font-semibold bg-black/55 backdrop-blur text-white px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <span className="text-brand-light">♥</span> {a.totalLikes}
+                    </div>
                   </div>
 
                   {/* meta */}
@@ -165,14 +183,14 @@ const Photography = () => {
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-[15px] font-semibold text-ink truncate">{title}</h3>
+                      <h3 className="text-[15px] font-semibold text-ink truncate group-hover:text-brand transition-colors">{title}</h3>
                       <div className="text-[12px] text-muted-foreground mt-0.5 truncate">{location}</div>
                       {a.bio && (
                         <p className="text-[12px] text-muted-foreground/90 mt-2 leading-relaxed line-clamp-2">{a.bio}</p>
                       )}
                     </div>
                   </div>
-                </article>
+                </Link>
               );
             })}
           </div>

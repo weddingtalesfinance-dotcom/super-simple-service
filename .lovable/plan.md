@@ -1,57 +1,58 @@
 ## Goal
 
-Update the "Browse by Category" section so only **Photography** is active. Clicking it opens a listing page showing all **agency / studio** users from the connected Supabase, each as a card with a few of their recent posted photos.
+1. **Remove** the Videography card from the homepage's "Browse by Category" section (only Photography stays as the active one; Decorators/Makeup/Venues stay greyed out as "Coming Soon").
+2. **Make each studio card clickable** on `/photography` — opening a public profile page styled like the Freelancer.xitoevents.com profile.
+3. **Order studios by total likes** received across all their feed posts (highest first).
 
 ## Changes
 
-### 1. Homepage category grid (`src/pages/Index.tsx`)
-- Replace the current 5 categories with a single set where **Photography** is the only active card.
-- Keep the other categories (Videography, Decorators, Makeup, Venues) visible but greyed out and labeled "Coming Soon" so the layout doesn't collapse.
-- The Photography card becomes a `<Link to="/photography">` (react-router).
+### 1. `src/pages/Index.tsx` — categories grid
+- Remove the "Videography" entry from the `CATS` array. Final cards: **Photography (active)**, Decorators, Makeup Artists, Venues (all three remain greyed out with "Soon" badge).
+- Grid stays at `lg:grid-cols-5` visually? Switch to `lg:grid-cols-4` so 4 cards fill the row cleanly.
 
-### 2. New listing page `src/pages/Photography.tsx`
-- Route: `/photography` (added in `src/App.tsx` above the catch-all).
-- Reuses the existing nav + footer styling from Index.
-- On mount, queries Supabase:
-  ```
-  freelancer_profiles
-    .select('user_id, full_name, business_name, city, area, profile_photo_url, bio')
-    .eq('account_type', 'agency')
-  ```
-  Then for each agency, fetch the latest 3 feed posts that have an image:
-  ```
-  feed_posts
-    .select('id, image_url')
-    .eq('user_id', <id>)
-    .not('image_url', 'is', null)
-    .order('created_at', { ascending: false })
-    .limit(3)
-  ```
-  Done in one batched `in('user_id', [...])` query, then grouped client-side, so we do exactly 2 round-trips total.
-- Renders a responsive grid of **studio cards**. Each card shows:
-  - Cover strip: up to 3 thumbnails from their feed posts (fallback to a brand gradient placeholder if they have none).
-  - Avatar (`profile_photo_url`) + business name (or full name) as title.
-  - Subtitle: `city · area`.
-  - Short bio (clamped to 2 lines).
-- Loading state: skeleton cards. Empty state: friendly message.
-- Cards are not clickable yet (no detail page exists in this project) — that can be added later.
+### 2. `src/pages/Photography.tsx` — list page updates
+- Change the Supabase query so studios are **ordered by total likes**:
+  - Fetch all agency profiles.
+  - Fetch every `feed_posts` row for those users with `likes_count`, sum per user.
+  - Sort the agency list by that sum descending. Studios with 0 likes go to the bottom.
+- Wrap each studio card in a `<Link to={`/photography/${user_id}`}>` so the whole card is clickable.
+- Add a small "❤ N" badge on each card showing total likes (so the ordering is visible).
 
-### 3. Optional polish
-- Header text on the Photography page: "Photography Studios in Nepal" + count.
-- Simple search/filter input by name/city (client-side filter over the loaded list) — small and useful since there are only ~8 agencies today.
+### 3. New page `src/pages/StudioProfile.tsx` (route `/photography/:userId`)
+Public read-only profile that mirrors the Freelancer app's `ProfileLayout` look, minus auth-only actions (no Follow / Message / Settings — this is a marketing landing page, viewers are not logged in).
+
+Sections, top to bottom:
+- **Top bar**: back link to `/photography` + studio name.
+- **Header**: 80px avatar + 3 stats (Posts · Total Likes · Followers — followers fetched from `follows` table count).
+- **Identity block**: business name (or full_name), `main_job` highlighted, skill badges built from the same `YES`/`NO` columns the freelancer app uses (`photographer`, `videographer`, `photo_editor`, etc.), city · area, bio.
+- **Social row**: Instagram / Facebook / YouTube / TikTok icon links (only those that exist), same styling as the Freelancer app.
+- **Contact row**: WhatsApp button (deep-links to `wa.me/<number>`) and a Call button (`tel:`) — only visible when contact_number / whatsapp_number is set. No auth wall, since the goal is to drive leads from the landing page.
+- **Posts grid**: Instagram-style 3-column grid of all the studio's feed_posts that have `image_url`, ordered newest first. Click a post → open a simple lightbox (image + caption). Empty state: "No posts yet."
+
+Data fetched in parallel with one query per source:
+```
+freelancer_profiles  where user_id = :id   (single row)
+feed_posts           where user_id = :id and image_url not null  order by created_at desc
+follows              where following_id = :id and status='accepted'   (head:true count)
+```
+
+### 4. `src/App.tsx` — add the new route above the catch-all
+```tsx
+<Route path="/photography" element={<Photography />} />
+<Route path="/photography/:userId" element={<StudioProfile />} />
+```
 
 ## Technical notes
 
-- Uses existing `@/integrations/supabase/client`. No schema changes, no RLS changes — `freelancer_profiles` and `feed_posts` already allow anon SELECT.
-- No auth required to view this page.
-- All 8 existing agencies in your Supabase will show up immediately (SD Films, Nepa Studio, Picture Point, Ktown Studios, Pana Production, Baddas Weddings, Photo Frame Nepal, Wedding Tales Nepal).
-
-## Files touched
+- All queries use the existing anon-readable RLS on `freelancer_profiles`, `feed_posts`, `follows` — no schema or policy changes needed.
+- `likes_count` already lives on each `feed_posts` row (maintained by the `update_feed_likes_count` trigger), so ranking is one cheap query — no extra joins.
+- Files touched:
 
 ```text
-src/pages/Index.tsx        (edit categories grid)
-src/pages/Photography.tsx  (new)
-src/App.tsx                (add /photography route)
+src/pages/Index.tsx           (remove Videography card)
+src/pages/Photography.tsx     (sort by total likes, make cards links, show like count)
+src/pages/StudioProfile.tsx   (new public profile page)
+src/App.tsx                   (new route)
 ```
 
 Approve to implement.
