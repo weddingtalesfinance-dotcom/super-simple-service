@@ -180,7 +180,7 @@ const Photography = () => {
       // Hero: ready as soon as both small queries resolve
       const top: TopPhoto[] = ((topRaw as Post[] | null) ?? [])
         .filter(p => p.image_url && agencyById[p.user_id])
-        .slice(0, 15)
+        .slice(0, 100)
         .map(p => ({
           id: p.id,
           user_id: p.user_id,
