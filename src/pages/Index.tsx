@@ -18,7 +18,6 @@ const FooterLogo = () => (
 
 const CATS = [
   { icon: "📸", label: "Photography", count: "Browse studios", bg: "var(--gradient-cat-1)", href: "/photography", active: true },
-  { icon: "🎬", label: "Videography", count: "Coming soon", bg: "var(--gradient-cat-2)", href: "#", active: false },
   { icon: "🎨", label: "Decorators", count: "Coming soon", bg: "var(--gradient-cat-3)", href: "#", active: false },
   { icon: "💄", label: "Makeup Artists", count: "Coming soon", bg: "var(--gradient-cat-4)", href: "#", active: false },
   { icon: "🏛", label: "Venues", count: "Coming soon", bg: "var(--gradient-cat-5)", href: "#", active: false },
