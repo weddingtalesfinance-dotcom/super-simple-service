@@ -285,7 +285,7 @@ const Photography = () => {
             </div>
           </div>
 
-          <TopPhotosCarousel photos={topPhotos} loading={loading} />
+          <TopPhotosCarousel photos={topPhotos} loading={topLoading} />
         </div>
       </section>
 
@@ -294,11 +294,11 @@ const Photography = () => {
         <div className="max-w-6xl mx-auto mb-6 flex items-baseline justify-between">
           <h2 className="font-display text-[20px] md:text-[24px] font-bold text-ink">All Studios</h2>
           <span className="text-[12px] text-muted-foreground">
-            {loading ? "Loading…" : `${filtered.length} studio${filtered.length === 1 ? "" : "s"} · ranked by popularity`}
+            {studiosLoading ? "Loading…" : `${filtered.length} studio${filtered.length === 1 ? "" : "s"} · ranked by popularity`}
           </span>
         </div>
 
-        {loading ? (
+        {studiosLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="rounded-xl border border-border overflow-hidden animate-pulse">
