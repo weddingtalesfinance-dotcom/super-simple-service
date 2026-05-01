@@ -67,9 +67,10 @@ const TopPhotosCarousel = ({ photos, loading }: { photos: TopPhoto[]; loading: b
     <div className="relative">
       <div ref={emblaRef} className="overflow-hidden">
         <div className="flex gap-3 md:gap-4">
-          {photos.map((p) => {
+          {photos.map((p, idx) => {
             const title = p.studio.business_name?.trim() || p.studio.full_name?.trim() || "Studio";
             const location = [p.studio.city, p.studio.area].filter(Boolean).join(" · ");
+            const eager = idx < 4;
             return (
               <Link
                 key={p.id}
@@ -79,7 +80,9 @@ const TopPhotosCarousel = ({ photos, loading }: { photos: TopPhoto[]; loading: b
                 <img
                   src={p.image_url}
                   alt={`${title} — featured photo`}
-                  loading="lazy"
+                  loading={eager ? "eager" : "lazy"}
+                  // @ts-expect-error fetchpriority is a valid HTML attr
+                  fetchpriority={idx === 0 ? "high" : undefined}
                   className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                 />
                 {/* Likes pill */}
@@ -142,62 +145,42 @@ const TopPhotosCarousel = ({ photos, loading }: { photos: TopPhoto[]; loading: b
 
 /* ---------------- Page ---------------- */
 const Photography = () => {
-  const [loading, setLoading] = useState(true);
+  const [studiosLoading, setStudiosLoading] = useState(true);
+  const [topLoading, setTopLoading] = useState(true);
   const [studios, setStudios] = useState<StudioRow[]>([]);
   const [topPhotos, setTopPhotos] = useState<TopPhoto[]>([]);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
     let cancelled = false;
+
+    // Run both queries in PARALLEL — agencies + top liked posts
+    const agenciesPromise = supabase
+      .from("freelancer_profiles")
+      .select("user_id, full_name, business_name, city, area, profile_photo_url, bio")
+      .eq("account_type", "agency");
+
+    // Pre-fetch the top liked posts directly (no need to wait for agency list).
+    // We over-fetch a little (20) then filter client-side to those owned by an agency.
+    const topPostsPromise = supabase
+      .from("feed_posts")
+      .select("id, user_id, image_url, likes_count")
+      .not("image_url", "is", null)
+      .order("likes_count", { ascending: false, nullsFirst: false })
+      .limit(20);
+
     (async () => {
-      setLoading(true);
-      const { data: ag, error } = await supabase
-        .from("freelancer_profiles")
-        .select("user_id, full_name, business_name, city, area, profile_photo_url, bio")
-        .eq("account_type", "agency");
+      const [{ data: ag }, { data: topRaw }] = await Promise.all([agenciesPromise, topPostsPromise]);
+      if (cancelled) return;
 
-      if (error || !ag) {
-        if (!cancelled) { setStudios([]); setTopPhotos([]); setLoading(false); }
-        return;
-      }
-
-      const agencies = ag as Agency[];
-      const ids = agencies.map(a => a.user_id);
+      const agencies = (ag as Agency[] | null) ?? [];
       const agencyById: Record<string, Agency> = {};
       agencies.forEach(a => { agencyById[a.user_id] = a; });
 
-      const likesByUser: Record<string, number> = {};
-      const photosByUser: Record<string, string[]> = {};
-      let topPosts: Post[] = [];
-
-      if (ids.length) {
-        const { data: posts } = await supabase
-          .from("feed_posts")
-          .select("id, user_id, image_url, likes_count, created_at")
-          .in("user_id", ids)
-          .order("created_at", { ascending: false });
-
-        const all = (posts as Post[] | null) ?? [];
-        all.forEach(p => {
-          likesByUser[p.user_id] = (likesByUser[p.user_id] ?? 0) + (p.likes_count ?? 0);
-          if (p.image_url) {
-            if (!photosByUser[p.user_id]) photosByUser[p.user_id] = [];
-            if (photosByUser[p.user_id].length < 3) photosByUser[p.user_id].push(p.image_url);
-          }
-        });
-
-        topPosts = all
-          .filter(p => p.image_url)
-          .sort((a, b) => (b.likes_count ?? 0) - (a.likes_count ?? 0))
-          .slice(0, 15);
-      }
-
-      const rows: StudioRow[] = agencies
-        .map(a => ({ ...a, totalLikes: likesByUser[a.user_id] ?? 0, photos: photosByUser[a.user_id] ?? [] }))
-        .sort((a, b) => b.totalLikes - a.totalLikes);
-
-      const top: TopPhoto[] = topPosts
-        .filter(p => agencyById[p.user_id])
+      // Hero: ready as soon as both small queries resolve
+      const top: TopPhoto[] = ((topRaw as Post[] | null) ?? [])
+        .filter(p => p.image_url && agencyById[p.user_id])
+        .slice(0, 15)
         .map(p => ({
           id: p.id,
           user_id: p.user_id,
@@ -205,13 +188,44 @@ const Photography = () => {
           likes_count: p.likes_count ?? 0,
           studio: agencyById[p.user_id],
         }));
+      setTopPhotos(top);
+      setTopLoading(false);
 
-      if (!cancelled) {
-        setStudios(rows);
-        setTopPhotos(top);
-        setLoading(false);
+      // Now fetch the rest (all posts for grid likes + thumbnails) in the background.
+      // Grid will appear shortly after the hero.
+      const ids = agencies.map(a => a.user_id);
+      if (!ids.length) {
+        setStudios([]);
+        setStudiosLoading(false);
+        return;
       }
+
+      const { data: posts } = await supabase
+        .from("feed_posts")
+        .select("user_id, image_url, likes_count, created_at")
+        .in("user_id", ids)
+        .order("created_at", { ascending: false });
+
+      if (cancelled) return;
+
+      const likesByUser: Record<string, number> = {};
+      const photosByUser: Record<string, string[]> = {};
+      ((posts as Post[] | null) ?? []).forEach(p => {
+        likesByUser[p.user_id] = (likesByUser[p.user_id] ?? 0) + (p.likes_count ?? 0);
+        if (p.image_url) {
+          if (!photosByUser[p.user_id]) photosByUser[p.user_id] = [];
+          if (photosByUser[p.user_id].length < 3) photosByUser[p.user_id].push(p.image_url);
+        }
+      });
+
+      const rows: StudioRow[] = agencies
+        .map(a => ({ ...a, totalLikes: likesByUser[a.user_id] ?? 0, photos: photosByUser[a.user_id] ?? [] }))
+        .sort((a, b) => b.totalLikes - a.totalLikes);
+
+      setStudios(rows);
+      setStudiosLoading(false);
     })();
+
     return () => { cancelled = true; };
   }, []);
 
@@ -274,7 +288,7 @@ const Photography = () => {
             </div>
           </div>
 
-          <TopPhotosCarousel photos={topPhotos} loading={loading} />
+          <TopPhotosCarousel photos={topPhotos} loading={topLoading} />
         </div>
       </section>
 
@@ -283,11 +297,11 @@ const Photography = () => {
         <div className="max-w-6xl mx-auto mb-6 flex items-baseline justify-between">
           <h2 className="font-display text-[20px] md:text-[24px] font-bold text-ink">All Studios</h2>
           <span className="text-[12px] text-muted-foreground">
-            {loading ? "Loading…" : `${filtered.length} studio${filtered.length === 1 ? "" : "s"} · ranked by popularity`}
+            {studiosLoading ? "Loading…" : `${filtered.length} studio${filtered.length === 1 ? "" : "s"} · ranked by popularity`}
           </span>
         </div>
 
-        {loading ? (
+        {studiosLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="rounded-xl border border-border overflow-hidden animate-pulse">
