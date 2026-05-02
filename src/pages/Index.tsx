@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { SignupModal } from "@/components/xito/SignupModal";
+import { supabase } from "@/integrations/supabase/client";
 
 type Role = "client" | "sp" | null;
 
