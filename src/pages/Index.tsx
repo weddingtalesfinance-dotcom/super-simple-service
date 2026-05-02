@@ -163,9 +163,14 @@ const Index = () => {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           {CATS.map(c => {
+            const isPhotography = c.label === "Photography";
             const inner = (
               <>
-                <div className="absolute inset-0 flex items-center justify-center text-5xl" style={{ background: c.bg }}>{c.icon}</div>
+                {isPhotography ? (
+                  <PhotoThumbCarousel photos={photoThumbs} fallbackBg={c.bg} fallbackIcon={c.icon} />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-5xl" style={{ background: c.bg }}>{c.icon}</div>
+                )}
                 <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.1) 60%)" }} />
                 {!c.active && <div className="absolute inset-0 bg-black/55" />}
                 <div className="absolute bottom-0 left-0 right-0 px-3.5 py-4 text-white">
