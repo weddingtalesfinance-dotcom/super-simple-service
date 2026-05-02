@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { SignupModal } from "@/components/xito/SignupModal";
+import { supabase } from "@/integrations/supabase/client";
 
 type Role = "client" | "sp" | null;
 
@@ -30,9 +31,57 @@ const STEPS = [
   { n: "04", title: "Enjoy Your Event", desc: "Relax — your team is confirmed and ready" },
 ];
 
+const PhotoThumbCarousel = ({ photos, fallbackBg, fallbackIcon }: { photos: string[]; fallbackBg: string; fallbackIcon: string }) => {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (photos.length < 2) return;
+    const t = setInterval(() => setIdx(i => (i + 1) % photos.length), 2500);
+    return () => clearInterval(t);
+  }, [photos.length]);
+
+  if (photos.length === 0) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center text-5xl" style={{ background: fallbackBg }}>
+        {fallbackIcon}
+      </div>
+    );
+  }
+
+  return (
+    <div className="absolute inset-0 bg-black">
+      {photos.map((src, i) => (
+        <img
+          key={src + i}
+          src={src}
+          alt=""
+          loading="lazy"
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out ${i === idx ? "opacity-100" : "opacity-0"}`}
+        />
+      ))}
+    </div>
+  );
+};
+
 const Index = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [preselect, setPreselect] = useState<Role>(null);
+  const [photoThumbs, setPhotoThumbs] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("feed_posts")
+        .select("image_url")
+        .not("image_url", "is", null)
+        .order("likes_count", { ascending: false })
+        .limit(12);
+      if (cancelled) return;
+      const urls = (data ?? []).map((d: { image_url: string | null }) => d.image_url).filter((u): u is string => !!u);
+      setPhotoThumbs(urls);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const open = (role: Role = null) => { setPreselect(role); setModalOpen(true); };
 
@@ -114,9 +163,14 @@ const Index = () => {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           {CATS.map(c => {
+            const isPhotography = c.label === "Photography";
             const inner = (
               <>
-                <div className="absolute inset-0 flex items-center justify-center text-5xl" style={{ background: c.bg }}>{c.icon}</div>
+                {isPhotography ? (
+                  <PhotoThumbCarousel photos={photoThumbs} fallbackBg={c.bg} fallbackIcon={c.icon} />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-5xl" style={{ background: c.bg }}>{c.icon}</div>
+                )}
                 <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.1) 60%)" }} />
                 {!c.active && <div className="absolute inset-0 bg-black/55" />}
                 <div className="absolute bottom-0 left-0 right-0 px-3.5 py-4 text-white">
