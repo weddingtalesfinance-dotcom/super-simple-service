@@ -70,15 +70,31 @@ const Index = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const { data: agencies } = await supabase
+        .from("freelancer_profiles")
+        .select("user_id")
+        .eq("account_type", "agency");
+      if (cancelled) return;
+      const agencyIds = (agencies ?? []).map((a: { user_id: string }) => a.user_id);
+      if (agencyIds.length === 0) return;
+
       const { data } = await supabase
         .from("feed_posts")
         .select("image_url")
+        .in("user_id", agencyIds)
         .not("image_url", "is", null)
         .order("likes_count", { ascending: false })
-        .limit(12);
+        .limit(40);
       if (cancelled) return;
-      const urls = (data ?? []).map((d: { image_url: string | null }) => d.image_url).filter((u): u is string => !!u);
-      setPhotoThumbs(urls);
+      const urls = (data ?? [])
+        .map((d: { image_url: string | null }) => d.image_url)
+        .filter((u): u is string => !!u);
+      // Shuffle (Fisher–Yates)
+      for (let i = urls.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [urls[i], urls[j]] = [urls[j], urls[i]];
+      }
+      setPhotoThumbs(urls.slice(0, 15));
     })();
     return () => { cancelled = true; };
   }, []);
