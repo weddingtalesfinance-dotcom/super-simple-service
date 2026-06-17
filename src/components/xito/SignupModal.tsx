@@ -16,14 +16,7 @@ const SP_TYPES = [
   { icon: "📸", label: "Photographer" },
   { icon: "🎬", label: "Videographer" },
   { icon: "💄", label: "Makeup Artist" },
-  { icon: "🌸", label: "Beauty Parlour" },
-  { icon: "🎨", label: "Decorator" },
   { icon: "🏛", label: "Venue / Hall" },
-  { icon: "🎵", label: "DJ / Music" },
-  { icon: "🍽", label: "Catering" },
-  { icon: "💐", label: "Florist" },
-  { icon: "🎪", label: "Event Planner" },
-  { icon: "🥁", label: "Band / Baja" },
   { icon: "➕", label: "Other" },
 ];
 

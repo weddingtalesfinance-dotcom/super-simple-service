@@ -1,0 +1,44 @@
+modules = ["nodejs-20"]
+[nix]
+channel = "stable-25_05"
+
+[agent]
+expertMode = true
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 5001
+externalPort = 3001
+
+[userenv]
+
+[userenv.shared]
+VITE_FACESEARCH_BASE_URL = "https://f38dc480-0bdf-4922-8f74-2d88a1b31285-00-256oyq99y1aya.pike.replit.dev/api"
+VITE_FACESEARCH_API_KEY = "fsk_4rDnlc8ncPOeR8lOEvDE1KEV7rmzhPw5xSAQPj3A"

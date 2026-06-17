@@ -1,9 +1,6 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { SignupModal } from "@/components/xito/SignupModal";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-
-type Role = "client" | "sp" | null;
 
 const Logo = ({ size = "text-[22px]" }: { size?: string }) => (
   <div className={`font-display ${size} font-bold text-ink tracking-wide`}>
@@ -12,8 +9,8 @@ const Logo = ({ size = "text-[22px]" }: { size?: string }) => (
 );
 
 const FooterLogo = () => (
-  <div className="font-display text-xl font-bold text-white">
-    Xito<span className="text-brand">.</span>Events
+  <div className="font-display text-sm font-semibold text-white/40">
+    Xito<span className="text-white/40">.</span>Events
   </div>
 );
 
@@ -33,13 +30,17 @@ const STEPS = [
 
 const PhotoThumbCarousel = ({ photos, fallbackBg, fallbackIcon }: { photos: string[]; fallbackBg: string; fallbackIcon: string }) => {
   const [idx, setIdx] = useState(0);
+  const [errorCount, setErrorCount] = useState(0);
+
   useEffect(() => {
     if (photos.length < 2) return;
     const t = setInterval(() => setIdx(i => (i + 1) % photos.length), 2500);
     return () => clearInterval(t);
   }, [photos.length]);
 
-  if (photos.length === 0) {
+  const allFailed = photos.length > 0 && errorCount >= photos.length;
+
+  if (photos.length === 0 || allFailed) {
     return (
       <div className="absolute inset-0 flex items-center justify-center text-5xl" style={{ background: fallbackBg }}>
         {fallbackIcon}
@@ -55,6 +56,7 @@ const PhotoThumbCarousel = ({ photos, fallbackBg, fallbackIcon }: { photos: stri
           src={src}
           alt=""
           loading="lazy"
+          onError={() => setErrorCount(c => c + 1)}
           className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out ${i === idx ? "opacity-100" : "opacity-0"}`}
         />
       ))}
@@ -63,9 +65,8 @@ const PhotoThumbCarousel = ({ photos, fallbackBg, fallbackIcon }: { photos: stri
 };
 
 const Index = () => {
-  const [modalOpen, setModalOpen] = useState(false);
-  const [preselect, setPreselect] = useState<Role>(null);
   const [photoThumbs, setPhotoThumbs] = useState<string[]>([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
@@ -99,25 +100,60 @@ const Index = () => {
     return () => { cancelled = true; };
   }, []);
 
-  const open = (role: Role = null) => { setPreselect(role); setModalOpen(true); };
 
   return (
-    <div className="bg-background text-ink w-full">
+    <div style={{ background: "#fff", color: "#1c1c1c" }} className="w-full">
       {/* NAV */}
-      <nav className="flex items-center justify-between px-10 h-16 border-b border-border bg-background z-10">
-        <Logo />
-        <div className="hidden md:flex items-center gap-7">
-          {["Vendors", "Venues", "Gallery", "Real Events", "Blog"].map(l => (
-            <a key={l} href="#" className="text-[13px] font-medium text-foreground/70 hover:text-brand transition-colors">{l}</a>
-          ))}
-          <button onClick={() => open()} className="bg-brand hover:bg-[hsl(var(--primary-hover))] text-primary-foreground text-[13px] font-medium px-5 py-2.5 rounded transition-colors">
-            Get Started
-          </button>
+      <nav style={{ background: "#fff", borderBottom: "1px solid #f0f0f0", position: "relative", zIndex: 20 }}>
+        <div className="flex items-center justify-between pl-6 pr-2 md:px-10 h-16">
+          {/* Logo */}
+          <div className="font-display text-[22px] font-bold tracking-wide" style={{ color: "#1c1c1c" }}>
+            Xito<span style={{ color: "#c0182e" }}>.</span>Events
+          </div>
+          {/* Desktop links */}
+          <div className="hidden md:flex items-center gap-7">
+            {["Vendors", "Venues", "Gallery", "Real Events"].map(l => (
+              <a key={l} href="#" className="text-[13px] font-medium transition-colors" style={{ color: "#555" }}>{l}</a>
+            ))}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate("/login")}
+                className="text-[13px] font-medium px-5 py-2.5 rounded transition-colors"
+                style={{ color: "#555", border: "1px solid #ddd", background: "transparent" }}
+              >
+                Login
+              </button>
+              <button
+                onClick={() => navigate("/get-started")}
+                className="text-[13px] font-medium px-5 py-2.5 rounded transition-colors"
+                style={{ background: "#c0182e", color: "#fff", border: "none" }}
+              >
+                Get Started
+              </button>
+            </div>
+          </div>
+          {/* Mobile: Login + Get Started */}
+          <div className="md:hidden flex items-center gap-2 mr-3">
+            <button
+              onClick={() => navigate("/login")}
+              className="text-[13px] font-medium px-3 py-2 rounded transition-colors"
+              style={{ color: "#555", border: "1px solid #ddd", background: "transparent" }}
+            >
+              Login
+            </button>
+            <button
+              onClick={() => navigate("/get-started")}
+              className="text-[13px] font-medium px-4 py-2 rounded transition-colors"
+              style={{ background: "#c0182e", color: "#fff", border: "none" }}
+            >
+              Get Started
+            </button>
+          </div>
         </div>
       </nav>
 
       {/* HERO */}
-      <section className="relative h-[520px] flex items-center justify-center overflow-hidden">
+      <section className="relative h-[320px] md:h-[460px] flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0" style={{ background: "var(--gradient-hero)" }} />
         <div className="absolute inset-0 bg-black/35" />
         <div
@@ -127,49 +163,50 @@ const Index = () => {
             backgroundSize: "20px 20px",
           }}
         />
-        <div className="relative z-10 text-center px-6 max-w-[680px]">
-          <div className="text-[11px] tracking-[0.3em] uppercase text-white/60 mb-4">Welcome to Xito Events</div>
-          <h1 className="font-display text-[52px] font-bold text-white leading-[1.1] mb-3">
+        <div className="relative z-10 text-center px-6 max-w-[680px]" style={{ marginTop: '-40px' }}>
+          <div className="text-[10px] md:text-[11px] tracking-[0.3em] uppercase text-white/60 mb-2 md:mb-4">Welcome to Xito Events</div>
+          <h1 className="font-display text-[48px] md:text-[72px] font-bold text-white leading-[1.1] mb-7 md:mb-10">
             Nepal's <em className="italic text-brand-light">One-Stop</em><br />Event Platform
           </h1>
-          <p className="text-[15px] text-white/65 font-light mb-10 leading-relaxed">
-            Find verified photographers, videographers, venues, decorators &amp; more for your wedding or event across Nepal.
-          </p>
-          <div className="flex gap-4 justify-center flex-wrap">
-            <button onClick={() => open()} className="inline-block bg-white text-brand text-sm font-semibold px-9 py-3.5 rounded border-2 border-white hover:bg-transparent hover:text-white transition-all">
-              Plan My Event
-            </button>
-            <button onClick={() => open("sp")} className="inline-block bg-transparent text-white text-sm font-medium px-9 py-3.5 rounded border-2 border-white/40 hover:border-white transition-all">
-              List My Services
-            </button>
-          </div>
-          <div className="flex items-center justify-center gap-10 mt-10">
-            {[
-              { num: "93+", label: "Professionals" },
-              { num: "500+", label: "Events Covered" },
-              { num: "4.9★", label: "Avg Rating" },
-            ].map((s, i, arr) => (
-              <div key={s.label} className="flex items-center gap-10">
-                <div className="text-center">
-                  <div className="font-display text-[26px] font-semibold text-white leading-none">{s.num}</div>
-                  <div className="text-[10px] tracking-[0.15em] text-white/45 uppercase mt-1">{s.label}</div>
-                </div>
-                {i < arr.length - 1 && <div className="w-px h-9 bg-white/15" />}
+        </div>
+        <div className="absolute bottom-5 md:bottom-7 left-0 right-0 z-10 flex items-center justify-center gap-6 md:gap-10">
+          {[
+            { num: "93+", label: "Professionals" },
+            { num: "500+", label: "Events Covered" },
+            { num: "4.9★", label: "Avg Rating" },
+          ].map((s, i, arr) => (
+            <div key={s.label} className="flex items-center gap-6 md:gap-10">
+              <div className="text-center">
+                <div className="font-display text-[18px] md:text-[26px] font-semibold text-white leading-none">{s.num}</div>
+                <div className="text-[9px] md:text-[10px] tracking-[0.15em] text-white/45 uppercase mt-1">{s.label}</div>
               </div>
-            ))}
-          </div>
+              {i < arr.length - 1 && <div className="w-px h-6 md:h-9 bg-white/15" />}
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* TRUST BAR */}
-      <div className="bg-brand-soft border-b border-brand-soft-border py-4 px-10 flex items-center justify-center gap-12 flex-wrap">
-        {["⭐ Verified Professionals Only", "🔒 100% Secure Bookings", "📅 BS Calendar Integrated", "⚡ Real-time Availability"].map(t => (
-          <div key={t} className="text-xs font-medium text-muted-foreground">{t}</div>
-        ))}
-      </div>
+      {/* FEATURED EVENT CARD */}
+      <section className="flex items-center justify-center py-5 px-4">
+        <div
+          onClick={() => navigate("/find-my-photos")}
+          className="relative rounded-2xl px-10 py-4 flex flex-col items-center justify-center gap-1 glow-animate cursor-pointer"
+          style={{ background: "hsl(15 55% 96%)", border: "1px solid hsl(4 72% 52% / 0.3)", minHeight: "64px", minWidth: "400px" }}
+        >
+          <p
+            className="text-[18px] font-semibold"
+            style={{ color: "hsl(4 72% 52%)", fontFamily: "Cormorant Garamond, Georgia, serif", letterSpacing: "0.02em" }}
+          >
+            Find My Photos
+          </p>
+          <p className="text-[11px] text-gray-400 tracking-wide">Find every event photo instantly with a simple face scan.</p>
+        </div>
+      </section>
+
+      <div className="w-full h-px" style={{ background: "hsl(6 20% 88%)", boxShadow: "0 4px 12px 0 hsl(6 30% 70% / 0.35)" }} />
 
       {/* CATEGORIES */}
-      <section className="py-14 px-10">
+      <section className="pt-2 pb-14 px-4 md:px-10">
         <div className="flex items-end justify-between mb-8">
           <div>
             <h2 className="font-display text-[28px] font-semibold text-ink">Browse by <span className="text-brand">Category</span></h2>
@@ -177,7 +214,7 @@ const Index = () => {
           </div>
           <a href="#" className="text-xs font-semibold text-brand uppercase tracking-wider">View All →</a>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3.5">
           {CATS.map(c => {
             const isPhotography = c.label === "Photography";
             const inner = (
@@ -210,52 +247,52 @@ const Index = () => {
         </div>
       </section>
 
-      {/* HOW IT WORKS */}
-      <section className="bg-brand-soft py-14 px-10">
-        <div>
-          <h2 className="font-display text-[28px] font-semibold text-ink">How <span className="text-brand">Xito Works</span></h2>
-          <p className="text-[13px] text-muted-foreground/80 mt-1 font-light">Plan your perfect event in 4 simple steps</p>
+
+      {/* DOWNLOAD APP SECTION */}
+      <section className="px-5 md:px-10 py-10 md:py-14 flex flex-col items-center text-center gap-5" style={{ background: "linear-gradient(135deg, hsl(350 78% 42% / 0.06) 0%, hsl(15 55% 96% / 0.8) 100%)" }}>
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "hsl(4 72% 52%)", boxShadow: "0 6px 24px hsl(4 72% 52% / 0.3)" }}>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+            <line x1="12" y1="18" x2="12.01" y2="18" />
+          </svg>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-brand-soft-border border border-brand-soft-border rounded-[10px] overflow-hidden mt-8">
-          {STEPS.map(s => (
-            <div key={s.n} className="bg-brand-soft p-8 text-center">
-              <div className="font-display text-[40px] font-bold leading-none mb-3" style={{ color: "#f0d0d4" }}>{s.n}</div>
-              <div className="text-sm font-semibold text-ink mb-1.5">{s.title}</div>
-              <div className="text-xs text-muted-foreground leading-relaxed">{s.desc}</div>
-            </div>
-          ))}
+        <div>
+          <h2 className="font-display text-[26px] md:text-[32px] font-bold text-gray-900">Take Xito Events with you</h2>
+        </div>
+        <button
+          onClick={() => navigate("/download-app")}
+          className="flex items-center gap-2 px-8 py-4 rounded-2xl text-white font-semibold text-[15px] transition-all active:scale-95 hover:opacity-90"
+          style={{ background: "hsl(4 72% 52%)", boxShadow: "0 4px 20px hsl(4 72% 52% / 0.35)" }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          Get App
+        </button>
+        <div className="flex items-center gap-3 text-[12px] text-gray-400">
+          <span>🤖 Android</span>
+          <span>·</span>
+          <span>Free to download</span>
         </div>
       </section>
 
       {/* FOOTER */}
-      <footer className="bg-brand-dark px-10 pt-10 pb-6">
-        <div className="flex flex-wrap gap-8 justify-between items-start mb-8 pb-8 border-b border-white/[0.07]">
-          <div>
-            <FooterLogo />
-            <div className="text-xs text-white/30 mt-1.5 font-light">Nepal's one-stop event platform</div>
-          </div>
-          <div className="flex gap-12 flex-wrap">
-            {[
-              { title: "Platform", links: ["Find Vendors", "Browse Venues", "Real Events"] },
-              { title: "Company", links: ["About Us", "Contact", "Blog"] },
-              { title: "Legal", links: ["Privacy Policy", "Terms of Use"] },
-            ].map(col => (
-              <div key={col.title}>
-                <div className="text-[11px] font-semibold tracking-[0.12em] uppercase text-white/40 mb-3">{col.title}</div>
-                {col.links.map(l => (
-                  <a key={l} href="#" className="block text-[13px] text-white/50 hover:text-white mb-1.5 transition-colors">{l}</a>
-                ))}
-              </div>
+      <footer className="bg-brand-dark px-5 md:px-10 pt-6 md:pt-10 pb-4 md:pb-6">
+        <div className="flex flex-col items-center gap-4 mb-5 md:mb-8 pb-5 md:pb-8 border-b border-white/[0.07]">
+          <FooterLogo />
+          <div className="flex gap-4 md:gap-6 items-center justify-center">
+            {["About Us", "Contact", "Privacy Policy", "Terms of Use"].map(l => (
+              <a key={l} href="#" className="text-[12px] md:text-[13px] text-white/50 hover:text-white transition-colors">{l}</a>
             ))}
           </div>
         </div>
-        <div className="flex justify-between items-center flex-wrap gap-2">
-          <div className="text-[11px] text-white/20">© 2025 Xito Events · Kathmandu, Nepal</div>
-          <div className="text-[11px] text-white/20">Made with ♥ for Nepal's event industry</div>
+        <div className="flex justify-center items-center">
+          <div className="text-[10px] md:text-[11px] text-white/20">© 2025 Xito Events · Kathmandu, Nepal</div>
         </div>
       </footer>
 
-      <SignupModal open={modalOpen} onClose={() => setModalOpen(false)} preselect={preselect} />
     </div>
   );
 };
